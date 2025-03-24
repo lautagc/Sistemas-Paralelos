@@ -35,64 +35,64 @@ double metrics(double *matriz, int N, double *max, double *min, double *prom);
 #define COORDINATOR 0
 
 int main(int argc, char* argv[]) {
-	int n, bs, numProcs, rank;
+    int n, bs, numProcs, rank;
     int start_time, end_time;
     int process_lenght, process_rows, matrix_lenght, offset;
-	double *a, *b, *c, *d, *r;
+    double *a, *b, *c, *d, *r;
     double maxA, minA, promA, maxB, minB, promB;
-	double commTimes[6], maxCommTimes[6], minCommTimes[6];
+    double commTimes[6], maxCommTimes[6], minCommTimes[6];
     MPI_Status status;
 
     parse_args(argc, argv, &n, &bs);
     matrix_lenght = n * n;
 
-	MPI_Init(&argc, &argv);
+    MPI_Init(&argc, &argv);
 
-	MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-	if (n % numProcs != 0) {
-		printf("El largo de la matriz debe ser multiplo del numero de procesos.\n");
-		exit(1);
-	}
+    if (n % numProcs != 0) {
+	    printf("El largo de la matriz debe ser multiplo del numero de procesos.\n");
+	    exit(1);
+    }
 
-	// calcular porcion de cada proceso
-	process_rows = n / numProcs;
+    // calcular porcion de cada proceso
+    process_rows = n / numProcs;
     process_lenght = process_rows * n;
 
-	// Reservar memoria
-	if (rank == COORDINATOR) {
-		a = (double*) malloc(sizeof(double)*matrix_lenght);
-		c = (double*) malloc(sizeof(double)*matrix_lenght);
+    // Reservar memoria
+    if (rank == COORDINATOR) {
+	    a = (double*) malloc(sizeof(double)*matrix_lenght);
+	    c = (double*) malloc(sizeof(double)*matrix_lenght);
         r = (double*) malloc(sizeof(double)*matrix_lenght);
-	}
-	else  {
-		a = (double*) malloc(sizeof(double)*process_lenght);
-		c = (double*) malloc(sizeof(double)*process_lenght);
+    }
+    else  {
+	    a = (double*) malloc(sizeof(double)*process_lenght);
+	    c = (double*) malloc(sizeof(double)*process_lenght);
         r = (double*) malloc(sizeof(double)*process_lenght);
-	}
+    }
 
     // Para la multiplicación la matriz factor de la derecha se utiliza en su totalidad
-	b = (double*) malloc(sizeof(double)*matrix_lenght);
+    b = (double*) malloc(sizeof(double)*matrix_lenght);
     d = (double*) malloc(sizeof(double)*matrix_lenght);
 
-	// inicializar datos
-	if (rank == COORDINATOR) {
+    // inicializar datos
+    if (rank == COORDINATOR) {
         init_matrices(a, b, c, d, r, n);
-	}
+    }
 
     // Espera para que todos los procesos estén listos para medir los tiempos
-	MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
 
-	commTimes[0] = MPI_Wtime();
+    commTimes[0] = MPI_Wtime();
 
     MPI_Scatter(a, process_lenght, MPI_DOUBLE, a, process_lenght, MPI_DOUBLE, COORDINATOR, MPI_COMM_WORLD);
     MPI_Scatter(c, process_lenght, MPI_DOUBLE, c, process_lenght, MPI_DOUBLE, COORDINATOR, MPI_COMM_WORLD);
-	
-	MPI_Bcast(b, matrix_lenght, MPI_DOUBLE, COORDINATOR, MPI_COMM_WORLD);
+
+    MPI_Bcast(b, matrix_lenght, MPI_DOUBLE, COORDINATOR, MPI_COMM_WORLD);
     MPI_Bcast(d, matrix_lenght, MPI_DOUBLE, COORDINATOR, MPI_COMM_WORLD);
-	
-	commTimes[1] = MPI_Wtime();
+
+    commTimes[1] = MPI_Wtime();
 
     metrics(a, process_lenght, &maxA, &minA, &promA);
     promA = promA / matrix_lenght; // (a+b+c+...+n) / x = (a/x)+(b/x)+(c/x)+...+(n/x)
@@ -102,7 +102,7 @@ int main(int argc, char* argv[]) {
     promB = promB / matrix_lenght;
 
     commTimes[2] = MPI_Wtime();
-    
+
     MPI_Allreduce(&maxA, &maxA, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
     MPI_Allreduce(&minA, &minA, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
     MPI_Allreduce(&promA, &promA, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -110,7 +110,7 @@ int main(int argc, char* argv[]) {
     MPI_Allreduce(&maxB, &maxB, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
     MPI_Allreduce(&minB, &minB, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
     MPI_Allreduce(&promB, &promB, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    
+
     commTimes[3] = MPI_Wtime();
 
     double factor = (maxA * maxB - minA * minB) / (promA * promB);
@@ -119,29 +119,29 @@ int main(int argc, char* argv[]) {
     matrix_scalar_multiplication(r, n, process_lenght, factor);
     matrix_multiplication(c, d, r, n, process_rows, bs);
 
-	commTimes[4] = MPI_Wtime();
+    commTimes[4] = MPI_Wtime();
 
     MPI_Gather(r, process_lenght, MPI_DOUBLE, r, process_lenght, MPI_DOUBLE, COORDINATOR, MPI_COMM_WORLD);
-	
+
     commTimes[5] = MPI_Wtime();
 
-	MPI_Reduce(commTimes, minCommTimes, 6, MPI_DOUBLE, MPI_MIN, COORDINATOR, MPI_COMM_WORLD);
-	MPI_Reduce(commTimes, maxCommTimes, 6, MPI_DOUBLE, MPI_MAX, COORDINATOR, MPI_COMM_WORLD);
+    MPI_Reduce(commTimes, minCommTimes, 6, MPI_DOUBLE, MPI_MIN, COORDINATOR, MPI_COMM_WORLD);
+    MPI_Reduce(commTimes, maxCommTimes, 6, MPI_DOUBLE, MPI_MAX, COORDINATOR, MPI_COMM_WORLD);
 
-	MPI_Finalize();
+    MPI_Finalize();
 
-	if (rank==COORDINATOR) {
+    if (rank==COORDINATOR) {
         verify_results(r, n);
         print_execution_data(n, bs, numProcs, commTimes, maxCommTimes, minCommTimes);
-	}
-	
-	free(a);
-	free(b);
-	free(c);
+    }
+
+    free(a);
+    free(b);
+    free(c);
     free(d);
     free(r);
 
-	return 0;
+    return 0;
 }
 
 
